@@ -7,6 +7,7 @@ node_js:
 sudo: false
 script:
 - npm run coverage-ci
+- npm run prepare
 deploy:
   provider: npm
   email: qt911025@163.com
