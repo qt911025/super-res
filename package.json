@@ -6,7 +6,7 @@
     "prepare": "babel src -o ./index.js",
     "test": "xo && ava",
     "coverage": "xo && nyc ava",
-    "coverage-ci": "xo && nyc --reporter=lcovonly ava | codecov"
+    "coverage-ci": "xo && nyc --reporter=lcovonly ava && codecov"
   },
   "files": [
     "src",
