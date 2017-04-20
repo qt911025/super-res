@@ -1,82 +1,93 @@
 {
-  "name": "super-res",
-  "version": "2.0.3",
-  "description": "RESTish wrapper for superagent, based on angular-resource",
-  "main": "dist/super-res.js",
+  "name": "super-res2",
+  "version": "0.0.1",
+  "description": "RESTish wrapper for superagent, similar as angular-resource",
   "scripts": {
-    "test": "gulp",
-    "test-browser": "gulp test-browser",
-    "build": "gulp build",
-    "coverage": "gulp coverage"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/jbalboni/super-res.git"
+    "prepare": "babel src -o ./index.js",
+    "test": "xo && ava",
+    "coverage": "xo && nyc ava",
+    "coverage-ci": "xo && nyc --reporter=lcovonly ava | codecov"
   },
   "files": [
-    "dist"
+    "src",
+    "index.js"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/qt911025/super-res2.git"
+  },
   "keywords": [
     "superagent",
     "resource",
     "angular",
     "rest"
   ],
-  "author": "Jeff Balboni <jbalboni@gmail.com>",
+  "contributors": [
+    "Jeff Balboni <jbalboni@gmail.com>",
+    "QuenTine <qt911025@qq.com>"
+  ],
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/jbalboni/super-res/issues"
+    "url": "https://github.com/qt911025/super-res2/issues"
   },
-  "homepage": "https://github.com/jbalboni/super-res",
+  "homepage": "https://github.com/qt911025/super-res2",
   "devDependencies": {
-    "babel-core": "^5.2.17",
-    "babel-eslint": "^4.0.5",
-    "babelify": "^6.0.0",
-    "browserify": "^11.0.1",
-    "chai": "^3.2.0",
-    "del": "^1.1.1",
-    "esperanto": "^0.7.4",
-    "glob": "^5.0.14",
-    "gulp": "^3.8.10",
-    "gulp-babel": "^5.0.0",
-    "gulp-eslint": "^1.0.0",
-    "gulp-file": "^0.2.0",
-    "gulp-filter": "^3.0.0",
-    "gulp-istanbul": "^0.10.0",
-    "gulp-livereload": "^3.4.0",
-    "gulp-load-plugins": "^0.10.0",
-    "gulp-mocha": "^2.0.0",
-    "gulp-notify": "^2.1.0",
-    "gulp-plumber": "^1.0.1",
-    "gulp-rename": "^1.2.0",
-    "gulp-sourcemaps": "^1.3.0",
-    "gulp-uglify": "^1.2.0",
-    "isparta": "^3.0.3",
-    "mocha": "^2.1.0",
-    "proxyquire": "^1.6.0",
-    "proxyquire-universal": "^1.0.8",
-    "proxyquireify": "^3.0.0",
-    "run-sequence": "^1.0.2",
-    "sinon": "^1.12.2",
-    "sinon-chai": "^2.7.0",
-    "vinyl-buffer": "^1.0.0",
-    "vinyl-source-stream": "^1.0.0",
-    "watchify": "^3.3.1"
-  },
-  "babelBoilerplateOptions": {
-    "entryFileName": "super-res",
-    "mainVarName": "superRes",
-    "mochaGlobals": [
-      "stub",
-      "spy",
-      "expect"
-    ]
+    "ava": "^0.19.1",
+    "babel-cli": "^6.24.0",
+    "babel-eslint": "^7.2.2",
+    "babel-plugin-add-module-exports": "^0.2.1",
+    "babel-plugin-transform-runtime": "^6.23.0",
+    "babel-plugin-transform-strict-mode": "^6.22.0",
+    "babel-preset-env": "^1.2.2",
+    "babel-register": "^6.24.0",
+    "codecov": "^2.1.0",
+    "nyc": "^10.1.2",
+    "pre-commit": "^1.2.2",
+    "proxyquire": "^1.7.11",
+    "sinon": "^2.1.0",
+    "xo": "^0.18.1"
   },
   "dependencies": {
-    "cache-manager": "^1.1.0",
-    "methods": "^1.1.1",
-    "object.assign": "^3.0.1",
-    "q": "^1.4.1",
-    "superagent": "^1.3.0"
-  }
+    "babel-runtime": "^6.23.0",
+    "cache-manager": "^2.4.0",
+    "methods": "^1.1.2",
+    "superagent": "^3.5.2"
+  },
+  "engines": {
+    "node": ">=4.0.0"
+  },
+  "ava": {
+    "files": [
+      "test/unit/**/*.js"
+    ],
+    "require": [
+      "babel-register"
+    ],
+    "babel": {
+      "plugins": [
+        "add-module-exports",
+        "transform-es2015-modules-commonjs",
+        "transform-strict-mode"
+      ]
+    },
+    "failFast": true
+  },
+  "xo": {
+    "space": true,
+    "rules": {
+      "ava/no-ignored-test-files": "off",
+      "import/no-extraneous-dependencies": [
+        "error",
+        {
+          "devDependencies": [
+            "test/**/*.*"
+          ]
+        }
+      ]
+    },
+    "parser": "babel-eslint"
+  },
+  "precommit": [
+    "coverage"
+  ]
 }

@@ -1,3 +1,9 @@
 {
-  "blacklist": ["useStrict"]
+  "presets": [["env", {
+    "target": {
+      "browsers": ["last 2 versions", "safari >= 7"],
+      "node": 4
+    }
+  }]],
+  "plugins": ["add-module-exports", "transform-runtime", "transform-strict-mode"]
 }

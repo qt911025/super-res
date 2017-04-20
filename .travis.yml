@@ -1,10 +1,16 @@
 language: node_js
 node_js:
-  - "0.10"
-  - "0.12"
-  - "io.js"
+- '4'
+- '5'
+- '6'
+- '7'
 sudo: false
-script: "gulp coverage"
-after_success:
-  - npm install -g codeclimate-test-reporter
-  - codeclimate-test-reporter < coverage/lcov.info
+script:
+- npm run coverage-ci
+deploy:
+  provider: npm
+  email: qt911025@163.com
+  on:
+    tags: true
+  api_key:
+    secure: LFouyg9lEJarOkZ5RYMV8GHfM0CzRnLOCDib7lYdToibLktCk5krkaxBv8nkOh6/Bs3ITGE8s+qIzHz3FLmeEPCprld2vUWLWsjbsMYlGGRmmAQKEj3FIVIEmzHL1DSuf4aVQJCEReG2ctifebU3+hGZQl4EAMr+Tn1eux3Tjo+I751i7eWJfzMAH2bLMC1mkGYAoDb1NnUBo062JRU2uVyma1z2+w5bIFx01FzWIT8v9I7sVb/nwbYpbTAk2MFfEGrQ5XRtaBt3RM7kdx8mXeaIODquT6AhGRRm016udZ2T/NDTxRSdKEos+vim6X1O0wO3Yu1tZKkckioHtly//pwmpr3GlNlR6bYuloSFI9qCzpsqY/0DJnU03N6D6pxNqIYttfYjfLz0rHHv9g/a8dSDS8brmEO5kCVD8M1lo3r0ZMAbvQdcNnqkmiZ3t+SK2h4MlLtB/bTHSTxC/MttuzHmOusMRt63HJ4wVgySyH/pS31XQ7GA4bM0+FFkP97Rdgg4bVPLXKviERfv207Nh8weYXWnpwlYfuf4Hw3MB9KJdsWEj8e8sTl/p3eFhtMfSKrpNGxPk7Db4noDvUxgjPrBXw1C02XUK1f+KW5X8bTBMTv5Xrm8pdPdNDePVlQGp3KXEC3yM/8cqvpj/5jKha1Qfly9snXi/VL4r6l721M=

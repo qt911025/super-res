@@ -1,53 +1,235 @@
-# super-res
+# super-res2
 
-[![Travis build status](http://img.shields.io/travis/jbalboni/super-res.svg?style=flat)](https://travis-ci.org/jbalboni/super-res)
-[![Test Coverage](https://codeclimate.com/github/jbalboni/super-res/badges/coverage.svg)](https://codeclimate.com/github/jbalboni/super-res)
-[![Dependency Status](https://david-dm.org/jbalboni/super-res.svg)](https://david-dm.org/jbalboni/super-res)
-[![devDependency Status](https://david-dm.org/jbalboni/super-res/dev-status.svg)](https://david-dm.org/jbalboni/super-res#info=devDependencies)
-
+[![Build Status](https://travis-ci.org/qt911025/super-res2.svg?branch=master)](https://travis-ci.org/qt911025/super-res2)
+[![codecov](https://codecov.io/gh/qt911025/super-res2/branch/master/graph/badge.svg)](https://codecov.io/gh/qt911025/super-res2)
+[![dependencies Status](https://david-dm.org/qt911025/super-res2/status.svg?style=flat-square)](https://david-dm.org/qt911025/super-res2)
+[![devDependencies Status](https://david-dm.org/qt911025/super-res2/dev-status.svg?style=flat-square)](https://david-dm.org/qt911025/super-res2?type=dev)
 This is patterned off of Angular's $resource service, except that it does not depend on Angular and uses superagent instead of $http. Route parsing is done with the route-parser module.
 
-    var superRes = require('super-res');
+## Usage
+> Node module only. Use Webpack, Browserify or other packer to build your frontend app.
 
-    var myResource = superRes.resource('/my-endpoint/:id')
+### Resource
+Create a resource instance by invoke `resource()`, like
+```js
+  var superRes = require('super-res');
 
-    myResource.get({id: 1})
-        .then(function (responseData) {
-            console.log(responseData);
-        });
-    
-    myResource.save({id: 1}, {content: 'some sort of content')
-        .then(function (responseData) {
-            console.log(responseData);
-        });
-    
-The options and interface defined in the [$resource doc](https://docs.angularjs.org/api/ngResource/service/$resource) is accurate (aside from the missing features and differences mentioned later)
-    
-## Caching
+  var myResource = superRes.resource('/my-endpoint/:id');
 
-Caching is handled by the [cache-manager](https://www.npmjs.com/package/cache-manager) node module. If you create an action with the cache option set to true, 
-it will use cache-manager's default in-memory cache with a max size of 100 items and a max age of 20 minutes. Or, you can provide your own cache object, 
-so long as it follows the cache-manager interface.
+  myResource.get({id: 1})
+  .then(function (responseData) {
+    console.log(responseData);
+  });
 
-There is also a function called promiseWrapper, which will wrap the promises returned by each action with an instance of $q passed to it. This is helpful if you want to use it with Angular:
+  myResource.save({id: 1}, {content: 'some sort of content')
+  .then(function (responseData) {
+    console.log(responseData);
+  });
+```
+#### `resource(url, [defaultParams], [actions], [commonOptions], [enforceFixMethod=true])`
+##### `url`
 
-    angular.module('test', []).factory('myResource', function ($q) {
-        var superRes = require('super-res');
-        
-        return superRes.promiseWrapper($q.when)(superRes.resource('/my-endpoint/:id'));
-    });
-    
-    //somewhere else
-    myResource.get({id: 1}; // returns a promise wrapped in $q.when() to hook into digest cycle
+Type: `string`
+Url template. Use `:` to define a template parameter.
+```
+/user/:id
+```
 
-The api is generally the same, but some things are not yet implemented. Here's what's on the list to add:
-- batching
+##### `defaultParams`
 
-Differences from angular-resource:
-- Entirely promise based. No $promise or $resolved properties.
-- Default params object does not support functions or @ notation.
-- The data returned is just an object, it does not have any resource functions attached.
-- isArray doesn't do anything. I haven't seen a use case for it (arrays and objects work as you'd expect).
-- Includes a default PUT action (called put).
-- Transforms are passed a headers object as the second argument, rather than a getter.
-- Superagent will automatically parse certain response types. This is not suppressed by passing a responseTransform of [].
+Type: `object`
+
+Default values for `url` parameters. These can be overridden in `actions` methods. If the parameter is not defined in url template, it will be add to query parameters.
+You can also use `@` and function like ngResource do. `@` means get parameter from request data. Function must be a simple synchronized function.
+
+`/user/:id` + `{id: 'foo'}` = `/user/foo`
+
+`/user/:id` + `{id: '@_id'}` + `{_id: 'foo'}`(request data) = `/user/foo`
+
+`/user/` + `{id: 'foo'}` = `/user/?id=foo`
+
+`/user/:id` + `{id(originalParam) {return 'morphed'}}` + `{id: 'foo'}`(actual parameter) = `/user/morphed`
+
+##### `actions`
+
+Type: `object<object>`
+Define custom action. If any reserved action is not defined, it will bind to the defined action,
+ or create a default one.
+
+```js
+{
+  actionName: {
+    method: 'PUT', // Default: 'GET'
+    params: {foo: '@bar'}, // Default parameter of this action. This will override defaultParams of resource
+    url: '',
+    responseType: 'json',
+    headers: {},
+    transformRequest: [],
+    catchRequestError: [],
+    transformResponse: [],
+    catchResponseError: [],
+    withCredentials: false,
+    cache: null, //You can set true to enable default cache, or specify a custom cache.
+    timeout: 0
+  }
+}
+```
+
+##### `commonOptions`
+
+Type: `object`
+
+Default options of this resource, will be override by action options. `param` is invalid.
+##### `enforceFixMethod`
+
+Type: `boolean`
+
+Default: `true`
+
+Decide if the method of reserved action will be corrected, and equivalent action will be forced to assign as one.
+
+Actions `get` and `query` are equivalent. They will be restrict to method `GET`.
+
+`post` --> `POST`
+
+`put` = `save` --> `PUT` Notice that `save` is not equivalent to `post`.
+
+`remove` = `delete` --> `DELETE`
+
+##### returns
+
+`resource(...)` will returns an resource instance that contains actions.
+
+`resourceIns[action](params, data)`
+
+`params` is parameters of this request.
+`data` is request data.
+In actions of `GET` method, `data` will be merged into `params`.
+
+Action functions will return a SuperAgent request, which supports hooks and cache.
+You can use all the methods that SuperAgent request provided.
+
+### Request
+You can create such a single request by calling `request`, or use wrapped method.
+
+#### `request(method, url, opts)`
+
+```js
+var superRes = require('super-res');
+
+superRes.request('GET', '/my-endpoint')
+.then(function (responseData) {
+  console.log(responseData);
+});
+
+```
+
+##### `method`
+
+Type: `string`
+
+Method should be uppercase.
+
+##### `url`
+
+Type: `string`
+
+Just url. `@` and function transform is not supported,
+and equest data will not be merged into query parameters.
+
+##### `opts`
+
+Type: `object`
+
+Same as `commonOptions` of request.
+
+##### returns
+
+This will returns a SuperAgent request instance, same as resource action.
+
+#### `request[method](url, data, options)`
+Wrappers of `request`.
+```js
+var superRes = require('super-res');
+
+superRes.request.get('/my-endpoint')
+.then(function (responseData) {
+  console.log(responseData);
+});
+
+```
+
+### Hooks
+There are 4 hooks to pre-process request data(and errors thrown during that), response body and response errors.
+
+#### transformRequest
+```js
+function(data) { // request data
+  this; // The context is SuperAgent request object. You can set header by calling this.set() .
+  return data; // This is a reduce hook so you should return a result.
+}
+
+```
+
+#### catchRequestError
+```js
+function(err) { // no context
+  throw err; // Throw to pass error to next hook.
+  return err; // Return to skip next hooks.
+}
+```
+
+#### transformResponse
+```js
+function(body) { // response data
+  this; // The context is SuperAgent response object.
+  return body;
+}
+```
+
+#### catchResponseError
+```js
+function(err) { // Just SuperAgent response error, not errors thrown by transformResponse. No context.
+  err.original; // Error occured when SA parsing response.
+  err.response; // No error occured. The status is a failure.
+  err.status = res.status;
+
+  throw err; // pass
+  return err; // skip
+}
+```
+
+### Options
+There are 3 level options you can set:
+
+- global: Default options of `request`, set in `require('super-res').config`
+- resource: Set in `commonOptions` of `resource`
+- action: Set in each action options.
+
+Priority: action > response > global
+
+High priority options will override low ones, except for hooks,
+where higher priority hooks will concat after lower hooks.
+
+If higher options has set `cache` to `true`, It will use the one in lower options.
+If there is no cache in lower options, a default cache will be used.
+
+### Cache
+Cache will use [cache-manager](https://www.npmjs.com/package/cache-manager) by default.
+If you want to assign a custom one, make sure what you are using has the same get/set api as `cache-manager`.
+
+## Differences from angular-resource
+
+- It's just a wrapper of [superagent](https://www.npmjs.com/package/superagent).
+Always returns a thennnable superagent request.
+- It's lightweight. Every request will return a plain object, with no method included.
+It needs dirty check to implement that feature, which is complicated.
+- Default "save" action will be the alias of "put", while "post" is much like "save as".
+- `isArray` is useless.
+- Other differences mentioned in usages.
+
+## To contribute
+Post issue before solving it, in case there is no need to solve.
+Fork the master branch, then new a branch naming by issue.
+Make sure the commit is fully tested.
+Don't commit built files.

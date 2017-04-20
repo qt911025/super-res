@@ -1,431 +1,374 @@
 import proxyquire from 'proxyquire';
+import test from '../_test.main';
 
-describe('request', ()=>{
-  let request;
-  let stubs;
-  let cacheStub;
-  let requestIns;
+test.beforeEach(t => {
+  t.context.cacheStub = {
+    get: t.context.stub(),
+    set: t.context.stub()
+  };
 
-  beforeEach(() => {
-    cacheStub = {
-      get: stub(),
-      set: stub()
-    };
+  // Original SuperAgent request
+  t.context.requestIns = {
+    set: t.context.stub().returnsThis(),
+    send: t.context.stub().returnsThis(),
+    query: t.context.stub().returnsThis(),
+    accept: t.context.stub().returnsThis(),
+    end: t.context.stub().returnsThis(),
+    then(onFulfilled, onRejected) {
+      return new Promise((resolve, reject) => {
+        this.end((err, res) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(res);
+          }
+        });
+      }).then(onFulfilled, onRejected);
+    },
+    catch(onRejected) {
+      return this.then(undefined, onRejected);
+    },
+    clearTimeout: t.context.stub().returnsThis(),
+    timeout: t.context.stub().returnsThis(),
+    withCredentials: t.context.stub().returnsThis()
+  };
 
-    requestIns = {
-      set: stub().returnsThis(),
-      send: stub().returnsThis(),
-      query: stub().returnsThis(),
-      accept: stub().returnsThis(),
-      end: stub().returnsThis(),
-      clearTimeout: stub().returnsThis(),
-      timeout: stub().returnsThis(),
-      withCredentials: stub().returnsThis()
-    };
+  t.context.stubs = {
+    superagent: t.context.stub().returns(t.context.requestIns),
+    'cache-manager': {
+      caching: t.context.stub().returns(t.context.cacheStub)
+    }
+  };
 
-    stubs = {
-      superagent: stub().returns(requestIns),
-      'cache-manager': {
-        caching: stub().returns(cacheStub)
-      }
-    };
+  t.context.request = proxyquire('../../src/request', t.context.stubs);
+});
 
-    request = proxyquire('../../src/request', stubs);
-  });
+test('request with response type', t => {
+  const url = 'http://example.com/posts/';
+  t.context.request.post(url, null, {responseType: 'text/plain'});
 
-  function noop() {}
+  // Should have called accept with json
+  t.true(t.context.requestIns.accept.calledWith('text/plain'));
+});
 
-  describe('request with response type', () => {
-    let result;
+test('request with headers', t => {
+  const headers = {'Content-Type': 'application/json'};
+  const url = 'http://example.com/posts/';
+  t.context.request.post(url, null, {headers});
 
-    const url = 'http://example.com/posts/';
-    beforeEach(() => {
-      result = request.post(url, noop, {responseType: 'text/plain'});
+  // Should have called set
+  t.true(t.context.requestIns.set.calledWith(headers));
+});
+
+test('request with timeout', t => {
+  const url = 'http://example.com/posts/';
+  t.context.request.post(url, null, {timeout: 30});
+
+  // Should have called timeout
+  t.true(t.context.requestIns.timeout.calledWith(30));
+});
+
+test('request without timeout', t => {
+  const url = 'http://example.com/posts/';
+  t.context.request.post(url);
+
+  // Should not have called timeout
+  t.false(t.context.requestIns.timeout.called);
+
+  // Should have called clearTimeout
+  t.true(t.context.requestIns.clearTimeout.called);
+});
+
+test('request with withCredentials', t => {
+  const url = 'http://example.com/posts/';
+  t.context.request.post(url, {}, {withCredentials: true});
+
+  // Should have called withCredentials
+  t.true(t.context.requestIns.withCredentials.called);
+});
+
+test('post request that is successful', async t => {
+  const returnData = {body: {test: 'something', test2: 'something else'}};
+  const url = 'http://example.com/posts/';
+  t.context.requestIns.end = t.context.stub().yields(null, returnData).returnsThis();
+  const originalEnd = t.context.requestIns.end;
+  const req = t.context.request.post(url);
+  const result = await req;
+
+  // Should have called end
+  t.true(originalEnd.called);
+
+  // Should have resolved callback
+  t.is(returnData, result);
+});
+
+test('post request with error', async t => {
+  const errorData = {message: 'Some error'};
+  const url = 'http://example.com/posts/';
+  t.context.requestIns.end = t.context.stub().yields(errorData, {}).returnsThis();
+  const originalEnd = t.context.requestIns.end;
+  try {
+    await t.context.request.post(url, {foo: 'bar'});
+  } catch (err) {
+    // Should have rejected callback
+    t.is(errorData, err);
+  }
+
+  // Should have called end
+  t.true(originalEnd.called);
+});
+
+test('get with data', async t => {
+  const transData = {data: 'something'};
+  const url = 'http://example.com/get/';
+  const sendSpy = t.context.spy();
+  t.context.requestIns.send = function (data) {
+    this._data = data;
+    sendSpy(data);
+    return this;
+  };
+  t.context.requestIns.end = t.context.stub().yields(null, {}).returnsThis();
+  const req = t.context.request.get(url, transData, {transformRequest: [function (data) {
+    this.query(data);
+    return null;
+  }]});
+
+  await req;
+
+// Should have send called
+  t.true(sendSpy.calledWith(transData));
+
+// Should have transformed request
+  t.true(t.context.requestIns.query.calledWith(transData));
+
+// Should have _data cleared
+  t.is(req._data, null);
+});
+
+test('post with request transform', async t => {
+  const transData = {data: 'something'};
+  const url = 'http://example.com/posts/';
+
+  t.context.requestIns.send = function (data) {
+    this._data = data;
+    return this;
+  };
+  t.context.requestIns.end = t.context.stub().yields(null, {}).returnsThis();
+  const req = t.context.request.post(url, {data: 1}, {transformRequest: [function (data) {
+    // This should be the SuperAgent request Instance
+    t.is(t.context.requestIns, this);
+    return Object.assign(data, transData);
+  }]});
+
+  await req;
+
+// Should have transformed request
+  t.deepEqual(req._data, transData);
+});
+
+test('post with request error transform', async t => {
+  const req = {data: 'something'};
+
+  const url = 'http://example.com/posts/';
+
+  t.context.requestIns.send = function (data) {
+    this._data = data;
+    return this;
+  };
+  const catchSpy = t.context.spy();
+  try {
+    await t.context.request.post(url, req, {
+      transformRequest: [function (req) {
+        throw req;
+      }],
+      catchRequestError: [function (e) {
+        catchSpy(e);
+        throw e;
+      }]
     });
+  } catch (err) {
+  // Should have returned error.
+    t.is(err, req);
+  }
 
-    it('should have called accept with json', () => {
-      expect(requestIns.accept.calledWith('text/plain')).to.be.true;
+  // Should have deal error.
+  t.true(catchSpy.calledWith(req));
+});
+
+test('post with request error transform', async t => {
+  const req = {data: 'something'};
+
+  const url = 'http://example.com/posts/';
+
+  t.context.requestIns.send = function (data) {
+    this._data = data;
+    return this;
+  };
+  const catchSpy = t.context.spy();
+  try {
+    await t.context.request.post(url, req, {
+      transformRequest: [function (req) {
+        throw req;
+      }],
+      catchRequestError: [function (e) {
+        catchSpy(e);
+        throw e;
+      }]
     });
-  });
-
-  describe('request with headers', () => {
-    let result;
-    let headers = {'Content-Type': 'application/json'};
-
-    const url = 'http://example.com/posts/';
-    beforeEach(() => {
-      result = request.post(url, noop, {headers: headers});
-    });
-
-    it('should have called set', () => {
-      expect(requestIns.set.calledWith(headers)).to.be.true;
-    });
-  });
-
-  describe('request with timeout', () => {
-    let result;
-
-    const url = 'http://example.com/posts/';
-    beforeEach(() => {
-      result = request.post(url, noop, {timeout: 30});
-    });
-
-    it('should have called timeout', () => {
-      expect(requestIns.timeout.calledWith(30)).to.be.true;
-    });
-  });
-
-  describe('request without timeout', () => {
-    let result;
-
-    const url = 'http://example.com/posts/';
-    beforeEach(() => {
-      result = request.post(url, noop);
-    });
-
-    it('should not have called timeout', () => {
-      expect(requestIns.timeout.called).to.be.false;
-    });
-
-    it('should have called clearTimeout', () => {
-      expect(requestIns.clearTimeout.called).to.be.true;
-    });
-  });
-
-
-  describe('request with withCredentials', () => {
-    let result;
-
-    const url = 'http://example.com/posts/';
-    beforeEach(() => {
-      result = request.post(url, {}, noop, {withCredentials: true});
-    });
-
-    it('should have called withCredentials', () => {
-      expect(requestIns.withCredentials.called).to.be.true;
-    });
-
-  });
-
-  describe('post request that is successful', () => {
-    let result, originalEnd, callback;
-    let returnData = {body: {test: 'something', test2: 'something else'}};
-
-    const url = 'http://example.com/posts/';
-    beforeEach((done) => {
-      originalEnd = requestIns.end = stub().yields(null, returnData).returnsThis();
-      callback = spy();
-      result = request.post(url, (...args) => {
-        callback(...args);
-        done();
-      });
-    });
-
-    it('should have called end', () => {
-      expect(originalEnd.called).to.be.true;
-    });
-
-    it('should have resolved callback', () => {
-      expect(callback.calledWith(null, returnData)).to.be.true;
-    });
-  });
-
-  describe('post request with error', () => {
-    let result, originalEnd, callback;
-    let errorData = {message: 'Some error'};
-
-    const url = 'http://example.com/posts/';
-    beforeEach((done) => {
-      originalEnd = requestIns.end = stub().yields(errorData, {}).returnsThis();
-      callback = spy();
-      result = request.post(url, {foo: 'bar'}, (...args) => {
-        callback(...args);
-        done();
-      });
-    });
-
-    it('should have called end', () => {
-      expect(originalEnd.called).to.be.true;
-    });
-
-    it('should have rejected callback', () => {
-      expect(callback.calledWith(errorData)).to.be.true;
-    });
-  });
-
-  describe('get with data', () => {
-    let result, sendSpy;
-    let transReq = {data: 'something'};
-
-    const url = 'http://example.com/get/';
-    beforeEach((done) => {
-      sendSpy = spy();
-      requestIns.send = function (data) {
-        this._data = data;
-        sendSpy(data);
-        return this;
-      };
-      requestIns.end = stub().yields(null, {}).returnsThis();
-      result = request.get(url, transReq, () => done(), {transformRequest: [function (data, header) {
-        this.query(data);
-        return null;
-      }]});
-    });
-
-    it('should have send called', () => {
-      expect(sendSpy.calledWith(transReq)).to.be.true;
-    });
-
-    it('should have transformed request', () => {
-      expect(requestIns.query.calledWith(transReq)).to.be.true;
-    });
-
-    it('should have _data cleared', () => {
-      expect(result._data).to.be.null;
-    });
-  });
-
-  describe('post with request transform', () => {
-    let result;
-    let transReq = {data: 'something'};
-
-    const url = 'http://example.com/posts/';
-    beforeEach((done) => {
-      requestIns.send = function (data) {
-        this._data = data;
-        return this;
-      };
-      requestIns.end = stub().yields(null, {}).returnsThis();
-      result = request.post(url, {data: 1}, () => done(), {transformRequest: [(req) => transReq]});
-    });
-
-    it('should have transformed request', () => {
-      expect(result._data).to.equal(transReq);
-    });
-  });
-
-  describe('post with request error transform', () => {
-    let result, catchSpy, returnSpy;
-    let req = {data: 'something'};
-
-    const url = 'http://example.com/posts/';
-    beforeEach((done) => {
-      requestIns.send = function (data) {
-        this._data = data;
-        return this;
-      };
-      catchSpy = spy();
-      returnSpy = spy();
-      result = request.post(url, req, (...args) => {
-        returnSpy(...args);
-        done();
-      }, {
-        transformRequest: [function (req) {
-          throw req;
-        }],
-        catchRequestError: [function (e) {
-          catchSpy(e);
-          throw e;
-        }]
-      });
-    });
-
-    it('should have deal error.', () => {
-      expect(catchSpy.calledWith(req)).to.be.true;
-    });
-
-    it('should have returned error.', () => {
-      expect(returnSpy.calledWith(req)).to.be.true;
-    });
-  });
-
-  describe('post with response transform', () => {
-    let result, returnSpy;
-    let transResp = {data: 'something'};
-
-    const url = 'http://example.com/posts/';
-    beforeEach((done) => {
-      requestIns.end = stub().yields(null, {body: {myData: 1}});
-      returnSpy = spy();
-      result = request.post(url, {}, (...args)=>{
-        returnSpy(...args);
-        done();
-      }, {transformResponse: [(resp) => transResp]});
-    });
-
-    it('should have transformed response', () => {
-      expect(returnSpy.calledWith(null, {body: transResp})).to.be.true;
-    });
-  });
-
-  describe('post with response transform(error occurred)', () => {
-    let result, returnSpy;
-    let transResp = {data: 'something'};
-
-    const url = 'http://example.com/posts/';
-    beforeEach((done) => {
-      requestIns.end = stub().yields(null, {body: {myData: 1}});
-      returnSpy = spy();
-      result = request.post(url, {}, (...args)=>{
-        returnSpy(...args);
-        done();
-      }, {transformResponse: [(resp) => {
-        throw transResp;
-      }]});
-    });
-
-    it('should have returned error', () => {
-      expect(returnSpy.calledWith(transResp)).to.be.true;
-    });
-  });
-
-  describe('post with response error transform', () => {
-    let result, returnSpy;
-    let transResp = {data: 'something'};
-
-    const url = 'http://example.com/posts/';
-    beforeEach((done) => {
-      requestIns.end = stub().yields({body: {myData: 1}});
-      returnSpy = spy();
-      result = request.post(url, {}, (...args) => {
-        returnSpy(...args);
-        done();
-      }, {catchResponseError: [(err) => transResp]});
-    });
-
-    it('should have transformed response', () => {
-      expect(returnSpy.calledWith(transResp)).to.be.true;
-    });
-  });
-
-
-  describe('post request with built in cache', () => {
-    let result;
-    let queryData = {test: 'something', test2: 'something else'};
-    let mockCachedResponse = {result: 'data'};
-
-    const url = 'http://example.com/posts/';
-    beforeEach((done) => {
-      requestIns.url = url;
-      requestIns._query = {};
-      requestIns._data = queryData;
-      requestIns.end = stub().yields(null, {body: mockCachedResponse});
-      result = request.post(url, queryData, () => {
-        done();
-      }, {cache: true});
-    });
-
-    it('should have called superagent', () => {
-      expect(stubs.superagent.calledWith('POST', url)).to.be.true;
-    });
-
-    it('should have sent data', () => {
-      expect(requestIns.send.calledWith(queryData)).to.be.true;
-    });
-
-    it('should have returned cached value', () => {
-      expect(cacheStub.set.calledWith(`${url}_{}_${JSON.stringify(queryData)}`, {body: mockCachedResponse})).to.be.true;
-    });
-
-  });
-
-  describe('get request with built in cache', () => {
-    let result, originalEnd, resultSpy;
-    let queryData = {test: 'something', test2: 'something else'};
-    let mockCachedResponse = {result: 'data'};
-
-    const url = 'http://example.com/posts/';
-    beforeEach((done) => {
-      originalEnd = requestIns.end;
-      requestIns.method = 'GET';
-      cacheStub.get.callsArgWith(1, null, {body: mockCachedResponse});
-      resultSpy = spy();
-
-      result = request.get(url, null, null, {cache: true});
-      result.query(queryData);
-      result.end((err, res) => {
-        resultSpy(res);
-        done();
-      });
-    });
-
-    it('should have returned cached value', () => {
-      expect(resultSpy.calledWith({body: mockCachedResponse})).to.be.true;
-    });
-
-    it('should not have called superagent original request', () => {
-      expect(originalEnd.called).to.be.false;
-    });
-  });
-
-  describe('get request with custom cache', () => {
-    let result, originalEnd, resultSpy;
-    let localCacheStub;
-    let queryData = {test: 'something', test2: 'something else'};
-    let mockCachedResponse = {body: {result: 'data'}};
-
-    const url = 'http://example.com/posts/';
-    beforeEach((done) => {
-      localCacheStub = {
-        get: stub(),
-        set: stub()
-      };
-      originalEnd = requestIns.end;
-      requestIns.method = 'GET';
-      localCacheStub.get.callsArgWith(1, null, mockCachedResponse);
-      resultSpy = spy();
-      result = request.get(url, null, null, {cache: localCacheStub});
-      result.query(queryData);
-      result.end((err, res) => {
-        resultSpy(res);
-        done();
-      });
-    });
-
-    it('should have returned cached value', () => {
-      expect(resultSpy.calledWith(mockCachedResponse)).to.be.true;
-    });
-
-    it('should not have called superagent original request', () => {
-      expect(originalEnd.called).to.be.false;
-    });
-  });
-
-  describe('get request with built in cache and no data', (done) => {
-    let result, originalEnd, resultSpy;
-    let queryData = {test: 'something', test2: 'something else'};
-    let mockCachedResponse = {body: {result: 'data'}};
-
-    const url = 'http://example.com/posts/';
-    beforeEach((done) => {
-      originalEnd = requestIns.end;
-      originalEnd.yields(null, mockCachedResponse);
-      requestIns.method = 'GET';
-      requestIns.url = url;
-      requestIns._query = queryData;
-      requestIns._data = {};
-      cacheStub.get.callsArgWith(1, null, null);
-      resultSpy = spy();
-
-      result = request.get(url, null, null, {cache: true});
-      result.query(queryData);
-      result.end((err, res) => {
-        resultSpy(res);
-        done();
-      });
-    });
-
-    it('should have returned cached value', () => {
-      expect(resultSpy.calledWith(mockCachedResponse)).to.be.true;
-    });
-
-    it('should have called superagent original request', () => {
-      expect(originalEnd.called).to.be.true;
-    });
-
-    it('should have called set', () => {
-      expect(cacheStub.set.calledWith(`${url}_${JSON.stringify(queryData)}_{}`, mockCachedResponse)).to.be.true;
-    });
-  });
-
+  } catch (err) {
+    // Should have returned error.
+    t.is(err, req);
+  }
+
+  // Should have deal error.
+  t.true(catchSpy.calledWith(req));
+});
+
+test('post with response transform', async t => {
+  const originalBody = {myData: 1};
+  const originalResp = {body: originalBody};
+  const transBody = {data: 'something'};
+
+  const url = 'http://example.com/posts/';
+
+  t.context.requestIns.end = t.context.stub().yields(null, originalResp);
+  const result = await t.context.request.post(url, {}, {transformResponse: [function (body) {
+    // The context should be SuperAgent Response object
+    t.is(this, originalResp);
+    // Should get original body
+    t.is(body, originalBody);
+    return transBody;
+  }]});
+
+// Should have transformed response
+  t.deepEqual(result, {body: transBody});
+});
+
+test('post with response transform(error occurred)', async t => {
+  const transBody = {data: 'something'};
+
+  const url = 'http://example.com/posts/';
+
+  t.context.requestIns.end = t.context.stub().yields(null, {body: {myData: 1}});
+  try {
+    await t.context.request.post(url, {}, {transformResponse: [() => {
+      throw transBody;
+    }]});
+  } catch (err) {
+    // Should have returned error
+    t.is(err, transBody);
+  }
+});
+
+test('post with response error transform', async t => {
+  const originalErr = {err: 'foo'};
+  const transErr = {err: 'bar'};
+
+  const url = 'http://example.com/posts/';
+  const notCalledSpy = t.context.spy();
+  t.context.requestIns.end = t.context.stub().yields(originalErr);
+  try {
+    await t.context.request.post(url, {}, {catchResponseError: [e => {
+      // Get original error
+      t.is(e, originalErr);
+      return transErr;
+    }, () => {
+      notCalledSpy();
+    }]});
+  } catch (err) {
+    // Should have transformed response
+    t.is(err, transErr);
+    // Should skip the 2nd hook
+    t.true(notCalledSpy.notCalled);
+  }
+});
+
+test('post request with built in cache', async t => {
+  const data = {test: 'something', test2: 'something else'};
+  const mockCachedResponse = {result: 'data'};
+
+  const url = 'http://example.com/posts/';
+
+  t.context.requestIns.url = url;
+  t.context.requestIns._query = {};
+  t.context.requestIns._data = data;
+  t.context.requestIns.end = t.context.stub().yields(null, {body: mockCachedResponse});
+  await t.context.request.post(url, data, {cache: true});
+
+// Should have called superagent
+  t.true(t.context.stubs.superagent.calledWith('POST', url));
+
+// Should have sent data
+  t.true(t.context.requestIns.send.calledWith(data));
+
+// Should have returned cached value
+  t.true(t.context.cacheStub.set.calledWith(`${url}_{}_${JSON.stringify(data)}`, {body: mockCachedResponse}));
+});
+
+test('get request with built in cache', async t => {
+  const queryData = {test: 'something', test2: 'something else'};
+  const mockCachedResponse = {body: {result: 'data'}};
+  const url = 'http://example.com/posts/';
+  const originalEnd = t.context.requestIns.end;
+  t.context.requestIns.method = 'GET';
+  t.context.cacheStub.get.callsArgWith(1, null, mockCachedResponse);
+
+  const req = t.context.request.get(url, null, {cache: true});
+  req.query(queryData);
+  const result = await req;
+// Should have returned cached value
+  t.is(result, mockCachedResponse);
+
+// Should not have called superagent original request
+  t.false(originalEnd.called);
+});
+
+test('get request with custom cache', async t => {
+  const queryData = {test: 'something', test2: 'something else'};
+  const mockCachedResponse = {body: {result: 'data'}};
+
+  const url = 'http://example.com/posts/';
+
+  const localCacheStub = {
+    get: t.context.stub().callsArgWith(1, null, mockCachedResponse),
+    set: t.context.stub()
+  };
+  const originalEnd = t.context.requestIns.end;
+  t.context.requestIns.method = 'GET';
+  const req = t.context.request.get(url, null, {cache: localCacheStub});
+  req.query(queryData);
+  const result = await req;
+
+// Should have returned cached value
+  t.is(result, mockCachedResponse);
+
+// Should not have called superagent original request
+  t.false(originalEnd.called);
+});
+
+test('get request with built in cache and no data', async t => {
+  const queryData = {test: 'something', test2: 'something else'};
+  const mockCachedResponse = {body: {result: 'data'}};
+
+  const url = 'http://example.com/posts/';
+
+  const originalEnd = t.context.requestIns.end;
+  originalEnd.yields(null, mockCachedResponse);
+  t.context.requestIns.method = 'GET';
+  t.context.requestIns.url = url;
+  t.context.requestIns._query = queryData;
+  t.context.requestIns._data = {};
+  t.context.cacheStub.get.callsArgWith(1, null, null);
+  const req = t.context.request.get(url, null, {cache: true});
+  req.query(queryData);
+  const result = await req;
+
+// Should have returned cached value
+  t.is(result, mockCachedResponse);
+
+// Should have called superagent original request
+  t.true(originalEnd.called);
+
+// Should have called set
+  t.true(t.context.cacheStub.set.calledWith(`${url}_${JSON.stringify(queryData)}_{}`, mockCachedResponse));
 });

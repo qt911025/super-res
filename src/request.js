@@ -1,8 +1,9 @@
-import Q from 'q';
 import sa from 'superagent';
 import methods from 'methods';
 import cacheManager from 'cache-manager';
-import {assignOptions} from './utils.js';
+import {assignOptions} from './utils';
+
+const defaultCache = cacheManager.caching({store: 'memory', max: 100, ttl: 1200});
 
 const defaultOpts = {
   responseType: 'json',
@@ -12,19 +13,38 @@ const defaultOpts = {
   transformResponse: [],
   catchResponseError: [],
   withCredentials: false,
-  cache: null
+  _cache: null,
+  get cache() {
+    return this._cache;
+  },
+  set cache(value) {
+    if (value === true) {
+      this._cache = defaultCache;
+    } else {
+      this._cache = value;
+    }
+  }
 };
-
-const defaultCache = cacheManager.caching({store: 'memory', max: 100, ttl: 1200});
 
 function getCacheKey(url, params, data) {
   return `${url}_${(typeof params === 'string') ? params : JSON.stringify(params || {})}_${(typeof data === 'string') ? data : JSON.stringify(data || {})}`;
 }
 
-function request (method, url, options) {
-  options = assignOptions(defaultOpts, options);
+/**
+ * Make a SuperAgent request
+ * @param method {String} Uppercase HTTP method
+ * @param url{String}
+ * @param opts{Object} With defaultOpts and SuperAgent options included
+ * @returns SuperAgent request instance
+ */
+function request(method, url, opts) {
+  const options = assignOptions(defaultOpts, opts);
 
-  let curReq = sa(method, url);
+  if (opts && opts.cache === true) {
+    options.cache = (defaultOpts.cache || defaultCache);
+  }
+
+  const curReq = sa(method, url);
   curReq.accept(options.responseType);
   curReq.set(options.headers);
 
@@ -38,54 +58,52 @@ function request (method, url, options) {
     curReq.withCredentials();
   }
 
-  if (options.cache == true) {
-    options.cache = defaultCache;
-  }
-
-  let originalEnd = curReq.end;
+  const originalEnd = curReq.end;
   curReq.end = function (fn) {
     let key;
-    options.cache && (key = getCacheKey(this.url, this._query, this._data));
+    if (options.cache) {
+      key = getCacheKey(this.url, this._query, this._data);
+    }
 
-    let doRequest = () => {
+    const doRequest = () => {
       if (curReq._data && typeof curReq._data === 'object') {
         try {
           curReq._data = options.transformRequest.reduce(
-            (memo, transform) => transform.call(curReq, memo, curReq.header),
+            (data, transform) => transform.call(curReq, data),
             curReq._data
           );
-        } catch (e) {
+        } catch (err) {
           options.catchRequestError.reduce(
             (promise, catchFunc) => promise.catch(catchFunc),
-            Q.Promise((resolve, reject) => reject(e))
+            Promise.reject(err)
           )
-            .then(fn, fn);
+          .then(fn, fn); // To skip hooks, just return the error
           return this;
         }
       }
 
-      return originalEnd.call(curReq, (err, res)=> {
+      return originalEnd.call(curReq, (err, res) => {
         if (err) {
           options.catchResponseError.reduce(
             (promise, catchFunc) => promise.catch(catchFunc),
-            Q.Promise((resolve, reject) => reject(err))
+            Promise.reject(err)
           )
-            .then(fn, fn);
+          .then(fn, fn);
         } else {
           try {
             res.body = options.transformResponse.reduce(
-              (memo, transform) => transform.call(res, memo),
+              (body, transform) => transform.call(res, body),
               res.body
             );
 
             if (options.cache) {
               options.cache.set(key, res);
             }
-
-          } catch (e) {
-            return Q(e).then(fn);
+          } catch (err) {
+            fn(err);
+            return;
           }
-          Q.spread([null, res], fn);
+          fn(null, res);
         }
       });
     };
@@ -93,36 +111,35 @@ function request (method, url, options) {
     if (options.cache && this.method === 'GET') {
       options.cache.get(key, (err, result) => {
         if (err || result) {
-          Q.spread([err, result], fn);
+          process.nextTick(() => fn(err, result));
           return this;
-        } else {
-          return doRequest();
         }
+        return doRequest();
       });
     } else {
       return doRequest();
     }
-
   };
 
   return curReq;
 }
 
-methods.forEach(function(method){
-  var name = 'delete' == method ? 'del' : method;
-  method = method.toUpperCase();
+/**
+ * Request[method]
+ * @param url{String}
+ * @param data{Object} Form data
+ * @param options{Object} With defaultOpts and SuperAgent options included
+ * @returns SuperAgent request instance
+ */
+methods.forEach(method => {
+  const name = method;
+  const _method = method.toUpperCase();
   Object.defineProperty(request, name, {
-    value: function(url, data, fn, options){
-      if ('function' === typeof data) {
-        options = fn;
-        fn = data;
-        data = null;
-      }
-      var req = request(method, url, options);
+    value(url, data, options) {
+      const req = request(_method, url, options);
       if (data) {
         req.send(data);
       }
-      fn && req.end(fn);
       return req;
     },
     enumerable: true

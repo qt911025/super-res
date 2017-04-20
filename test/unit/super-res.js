@@ -1,124 +1,99 @@
 import proxyquire from 'proxyquire';
-import Q from 'q';
+import test from '../_test.main';
 
-describe('resource: ', () => {
-  let actionStub;
-  let superRes;
-  let constructorSpy;
+test.beforeEach(t => {
+  t.context.actionStub = {
+    makeRequest: t.context.stub()
+  };
 
-  beforeEach(() => {
-    actionStub = {
-      makeRequest: stub()
-    };
+  t.context.constructorSpy = t.context.spy();
 
-    constructorSpy = spy();
+  const stubs = {
+    './resource-action'(...args) {
+      t.context.constructorSpy(...args);
+      return t.context.actionStub;
+    }
+  };
+  t.context.superRes = proxyquire('../../src/super-res', stubs);
+  t.context.stubs = stubs;
+});
 
-    let stubs = {
-      './ResourceAction.js': function (...args) {
-        constructorSpy(...args);
-        return actionStub;
+test('Default actions are defined', t => {
+  t.context.resource = t.context.superRes.resource('http://example.com/posts/:id');
+
+  t.is(typeof t.context.resource.get, 'function');
+  t.is(typeof t.context.resource.save, 'function');
+  t.is(typeof t.context.resource.put, 'function');
+  t.is(typeof t.context.resource.get, 'function');
+  t.is(typeof t.context.resource.delete, 'function');
+  t.is(typeof t.context.resource.remove, 'function');
+});
+
+test('Custom action is defined', t => {
+  t.context.resource = t.context.superRes.resource('http://example.com/posts/:id', null, {
+    myFunction: {method: 'GET'}
+  });
+  t.context.resource.myFunction();
+
+  t.is(typeof t.context.resource.myFunction, 'function');
+  t.true(t.context.actionStub.makeRequest.called);
+});
+
+test('Default parameters of single action is defined', t => {
+  t.context.resource = t.context.superRes.resource('http://example.com/posts/:id', null, {
+    myFunction: {params: {id: 'foo'}}
+  });
+  t.context.resource.myFunction();
+
+  t.is(typeof t.context.resource.myFunction, 'function');
+  t.true(t.context.actionStub.makeRequest.called);
+  t.true(t.context.constructorSpy.calledWith('http://example.com/posts/:id', {id: 'foo'}, {}));
+});
+
+test('False method is fixed', t => {
+  t.context.stubs['./resource-action'] = function (url, defaultParams, options) {
+    return {
+      config: Object.assign({}, options),
+      makeRequest() {
+        return this.config;
       }
     };
-    superRes = proxyquire('../../src/super-res', stubs);
+  };
 
+  t.context.superRes = proxyquire('../../src/super-res', t.context.stubs);
+
+  t.context.resource = t.context.superRes.resource('http://example.com/posts/:id', null, {
+    get: {method: 'PUT'},
+    query: {method: 'POST'},
+    post: {method: 'GET'}
   });
 
-  describe('Default actions are defined', () => {
-    let resource;
-    beforeEach(() => {
-      resource = superRes.resource('http://example.com/posts/:id');
-    });
+  t.is(t.context.resource.get, t.context.resource.query);
+  t.is(t.context.resource.get().method, 'GET');
+  t.is(t.context.resource.post().method, 'POST');
+});
 
-    it('should have get', () => {
-      expect(resource.get).to.be.a('function');
-    });
-    it('should have save', () => {
-      expect(resource.save).to.be.a('function');
-    });
-    it('should have put', () => {
-      expect(resource.put).to.be.a('function');
-    });
-    it('should have query', () => {
-      expect(resource.query).to.be.a('function');
-    });
-    it('should have delete', () => {
-      expect(resource.delete).to.be.a('function');
-    });
-    it('should have remove', () => {
-      expect(resource.remove).to.be.a('function');
-    });
+test('Will not fix method, but combine equivalent actions', t => {
+  t.context.stubs['./resource-action'] = function (url, defaultParams, options) {
+    return {
+      config: Object.assign({}, options),
+      makeRequest() {
+        return this.config;
+      }
+    };
+  };
 
-  });
-  describe('Custom action is defined', () => {
-    let resource;
-    beforeEach(() => {
-      resource = superRes.resource('http://example.com/posts/:id', null, {
-        myFunction: { method: 'GET' }
-      });
-      resource.myFunction();
-    });
+  t.context.superRes = proxyquire('../../src/super-res', t.context.stubs);
 
-    it('should have myFunction', () => {
-      expect(resource.myFunction).to.be.a('function');
-      expect(actionStub.makeRequest.called).to.be.true;
-    });
+  t.context.resource = t.context.superRes.resource('http://example.com/posts/:id', null, {
+    query: {method: 'POST'},
+    remove: {method: 'GET'},
+    delete: {method: 'PUT'}
+  }, {}, false);
 
-  });
-
-  describe('Default parameters of single action is defined', () => {
-    let resource;
-    beforeEach(() => {
-      resource = superRes.resource('http://example.com/posts/:id', null, {
-        myFunction: { params: {id: 'foo'} }
-      });
-      resource.myFunction();
-    });
-
-    it('should have myFunction', () => {
-      expect(resource.myFunction).to.be.a('function');
-      expect(actionStub.makeRequest.called).to.be.true;
-    });
-
-    it('should have default parameters', () => {
-      expect(constructorSpy.calledWith('http://example.com/posts/:id', {id: 'foo'}, {})).to.be.true;
-    });
-
-  });
-
-  describe('Call promiseWrapper with successful request', () => {
-    let resource;
-    let qStub;
-    beforeEach(() => {
-      qStub = spy();
-      resource = superRes.promiseWrapper(qStub)(superRes.resource('http://example.com/posts/:id'));
-      actionStub.makeRequest.returns(Q.when({test: 1}));
-      resource.get({id: 1});
-    });
-
-    it('should wrap each action in a promise', () => {
-      expect(qStub.calledOnce).to.be.true;
-    });
-
-  });
-
-  describe('Call promiseWrapper with failed request', () => {
-    let resource;
-    let promise;
-
-    beforeEach(() => {
-      resource = superRes.promiseWrapper(Q)(superRes.resource('http://example.com/posts/:id'));
-      actionStub.makeRequest.returns(Q.reject({test: 1}));
-      promise = resource.get({id: 1});
-    });
-
-    it('should return a rejected promise', (done) => {
-      promise.then((res) => {
-        expect.fail();
-        done();
-      }, () => {
-        done();
-      });
-    })
-
-  });
+  t.is(t.context.resource.get, t.context.resource.query);
+  t.is(t.context.resource.get().method, 'POST');
+  t.not(t.context.resource.remove, t.context.resource.delete);
+  t.is(t.context.resource.remove().method, 'GET');
+  t.is(t.context.resource.delete().method, 'PUT');
 });
