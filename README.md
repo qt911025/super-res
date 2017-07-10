@@ -24,7 +24,7 @@ Create a resource instance by invoke `resource()`, like
     console.log(responseData);
   });
 
-  myResource.save({id: 1}, {content: 'some sort of content')
+  myResource.save({id: 1}, {content: 'some sort of content'})
   .then(function (responseData) {
     console.log(responseData);
   });
