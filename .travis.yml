@@ -10,10 +10,10 @@ node_js:
 - '11'
 sudo: false
 script:
-- npm run coverage-ci
-- npm run prepare
+- yarn run coverage-ci
+- yarn run prepare
 deploy:
-  provider: npm
+  provider: yarn
   email: qt911025@163.com
   on:
     tags: true
