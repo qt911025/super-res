@@ -1,8 +1,17 @@
 {
-  "presets": [["env", {
-    "target": {
-      "node": true
-    }
-  }]],
-  "plugins": ["add-module-exports", "transform-runtime", "transform-strict-mode"]
+  "presets": [
+    [
+      "@babel/preset-env",
+      {
+        "targets": {
+          "node": 4
+        }
+      }
+    ]
+  ],
+  "plugins": [
+    "add-module-exports",
+    "@babel/plugin-transform-runtime",
+    "@babel/plugin-transform-strict-mode"
+  ]
 }
