@@ -9,7 +9,7 @@ script:
 - yarn run coverage-ci
 - yarn run prepare
 deploy:
-  provider: yarn
+  provider: npm
   email: qt911025@163.com
   on:
     tags: true
