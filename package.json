@@ -3,7 +3,7 @@
   "version": "0.0.4",
   "description": "RESTish wrapper for superagent, similar like angular-resource.",
   "scripts": {
-    "prepare": "npx rollup -c",
+    "prepare": "rollup -c",
     "test": "yarn run lint && ava",
     "coverage": "yarn run lint && nyc ava",
     "coverage-ci": "yarn run lint && nyc --reporter=lcovonly ava && codecov",

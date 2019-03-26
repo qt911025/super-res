@@ -16,7 +16,7 @@ export default {
         },
         modules: false
       }]],
-      plugins: ['@babel/plugin-transform-runtime', '@babel/plugin-transform-strict-mode'],
+      plugins: ['add-module-exports', '@babel/plugin-transform-runtime', '@babel/plugin-transform-strict-mode'],
       exclude: 'node_modules/**',
       runtimeHelpers: true
     })
