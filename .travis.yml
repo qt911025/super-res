@@ -8,6 +8,8 @@ sudo: false
 script:
 - yarn run coverage-ci
 - yarn run prepare
+before_deploy:
+- yarn global add rollup
 deploy:
   provider: npm
   email: qt911025@163.com
