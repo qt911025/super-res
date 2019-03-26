@@ -8,12 +8,11 @@ sudo: false
 script:
 - yarn run coverage-ci
 - yarn run prepare
-before_deploy:
-- yarn global add rollup
 deploy:
   provider: npm
   email: qt911025@163.com
   on:
     tags: true
+  skip_cleanup: true
   api_key:
     secure: KZobgCOwl/N7B0Qi9/cMqdfC4gzFf5hBrAcfYVBRVzRxYS1F2JQ2fF3F3skBn379stXUECw73pOZyhJ0WjUsWG2IdfhfEvzxfHxUeAoGzcs2ZFjXy23cwO12GUkevlpKsauK1tD5/4vOxocmD3WyqDmVyy0Y0c1IkNcNRCsbdywEoCgLHfjYh1X+Rh53BZM5djWJGxNs7nSxsqeHqzuFgg/oq6jQW9as/EyAbY3NQgcLLD4dgIatX3hXErunw+CzNtoL7d60TrTD/FmL3tG97RSN11EbyWN/YT7VBGUzJWWlyk0GzEPfzzwTLHNKghc2IByKVcI3a+nrdgI2EJhqs2fU6zi0Ufb+38Z3AjGgZpY/MAs8Pe9/X9v+deqCYMQfhbrRKD84LY9kognNKFLVoXrVt0tQ+rbBRX0inbFlvQ5hMpLMz5eFzzZHNC89gQDJbleqJ6zQWtHPNdv3gTsgL1k3xwAW8DCn4edxqB+hkXzWOBtSjWtUaiOuqDN63eGf6em2xTvUFugNc3AwsBz3kBkL3FNkhdssWFAz/IgeJck0iSA1Im10Au9S4MzOCYVwAndXPPEmnpdx56tbOxV7z/HyhQpvHOwi6zLEK4PDmGIggMEyYvBoGSpYl1pyuG7AY4vnJxRXnehJNTPHibdrWG3apBKzLlmy1pKYC7yo+NA=
