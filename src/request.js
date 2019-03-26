@@ -70,20 +70,18 @@ function request (method, url, opts) {
     }
 
     const doRequest = () => {
-      if (curReq._data && typeof curReq._data === 'object') {
-        try {
-          curReq._data = options.transformRequest.reduce(
-            (data, transform) => transform.call(curReq, data),
-            curReq._data
-          )
-        } catch (err) {
-          options.catchRequestError.reduce(
-            (promise, catchFunc) => promise.catch(catchFunc),
-            Promise.reject(err)
-          )
-            .then(fn, fn) // To skip hooks, just return the error
-          return this
-        }
+      try {
+        curReq._data = options.transformRequest.reduce(
+          (data, transform) => transform.call(curReq, data),
+          curReq._data
+        )
+      } catch (err) {
+        options.catchRequestError.reduce(
+          (promise, catchFunc) => promise.catch(catchFunc),
+          Promise.reject(err)
+        )
+          .then(fn, fn) // To skip hooks, just return the error
+        return this
       }
 
       return originalEnd.call(curReq, (err, res) => {

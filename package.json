@@ -1,6 +1,6 @@
 {
   "name": "super-res2",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "RESTish wrapper for superagent, similar like angular-resource.",
   "scripts": {
     "prepare": "rollup -c",
