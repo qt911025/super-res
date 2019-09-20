@@ -6,6 +6,7 @@ export default {
     file: 'index.js',
     format: 'cjs'
   },
+  external: ['cache-manager'],
   plugins: [
     babel({
       babelrc: false,
