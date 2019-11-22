@@ -15,9 +15,9 @@ This is patterned off of Angular's $resource service, except that it does not de
 
 Create a resource instance by invoke `resource()`, like
 ```js
-  var superRes = require('super-res');
+  import superRes from 'super-res2'
 
-  var myResource = superRes.resource('/my-endpoint/:id');
+  const myResource = superRes.resource('/my-endpoint/:id');
 
   myResource.get({id: 1})
   .then(function (responseData) {
@@ -49,13 +49,42 @@ Type: `object`
 Default values for `url` parameters. These can be overridden in `actions` methods. If the parameter is not defined in url template, it will be add to query parameters.
 You can also use `@` and function like ngResource do. `@` means get parameter from request data. Function must be a simple synchronized function.
 
-`/user/:id` + `{id: 'foo'}` = `/user/foo`
+```js
+superRes.resource('/user/:id', { id: 'foo' }) // will request GET '/user/foo'
+```
 
-`/user/:id` + `{id: '@_id'}` + `{_id: 'foo'}`(request data) = `/user/foo`
+```js
+const myResource = superRes.resource('/user/:id', { id: '@_id' })
+myResource.save({ _id: 'foo' }) // will request PUT '/user/foo'
+```
 
-`/user/` + `{id: 'foo'}` = `/user/?id=foo`
+```js
+myResource.save({ page: 1 }, { _id: 'foo' }) // will request PUT '/user/foo?page=1'
+```
 
-`/user/:id` + `{id(originalParam) {return 'morphed'}}` + `{id: 'foo'}`(actual parameter) = `/user/morphed`
+```js
+const anotherResource = superRes.resource('/user/:id', { id: (params, data) => params.foo+data._id }) // preprocess function
+myResource.save({ foo: 'bar' }, { _id: '_myId' }) // will request PUT '/user/bar_myId'
+```
+
+You can even use async preprocess function.
+However, error thrown from here won't be catched by catchRequestError hooks.
+This preprocessor should be guaranteed as simple as possible.
+
+```js
+const anotherResource = superRes.resource('/user/:id', {
+  id: async (params, data) => {
+    await new Promise((resolve) => {
+      setTimeout(() => {
+        resolve()
+      }, 500)
+    })
+    return params.foo+data._id
+  }
+})
+myResource.save({ foo: 'bar' }, { _id: '_myId' }) // will request PUT '/user/bar_myId'
+
+```
 
 ##### `actions`
 
@@ -127,7 +156,7 @@ You can create such a single request by calling `request`, or use wrapped method
 #### `request(method, url, [opts])`
 
 ```js
-var superRes = require('super-res');
+import superRes from 'super-res2'
 
 superRes.request('GET', '/my-endpoint')
 .then(function (responseData) {
@@ -147,7 +176,7 @@ Method should be uppercase.
 Type: `string`
 
 Just url. `@` and function transform is not supported,
-and equest data will not be merged into query parameters.
+and request data will not be merged into query parameters.
 
 ##### `opts`
 
@@ -164,7 +193,7 @@ This will returns a SuperAgent request instance, same as resource action.
 Wrappers of `request`.
 
 ```js
-var superRes = require('super-res');
+import superRes from 'super-res2'
 
 superRes.request.get('/my-endpoint')
 .then(function (responseData) {
@@ -177,7 +206,7 @@ superRes.request.get('/my-endpoint')
 
 There are 4 hooks to pre-process request data(and errors thrown during that), response body and response errors.
 
-#### transformRequest
+#### transformRequest(sync only yet)
 
 ```js
 function(data) { // request data
@@ -196,7 +225,7 @@ function(err) { // no context
 }
 ```
 
-#### transformResponse
+#### transformResponse(sync only yet)
 
 ```js
 function(body) { // response data

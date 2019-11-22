@@ -141,16 +141,34 @@ test('post request with @ params and data', t => {
   t.false(t.context.request.query.called)
 })
 
-test('post request with factory params and data', t => {
+test('post request with factory params and data', async t => {
+  const query = { foo: 'bar' }
   const postData = { _id: 'hashcode', test: 'something', test2: 'something else' }
   const url = 'http://example.com/posts/:id'
-  const resource = new t.context.ResourceAction(url, { id: () => 'foo' }, { method: 'POST' })
-  resource.makeRequest(postData)
+  t.context.request.end = t.context.stub().yields(null, { body: {} }).returnsThis()
+  const resource = new t.context.ResourceAction(url, { id: (params, data) => params.foo + data._id }, { method: 'POST' })
+  await resource.makeRequest(query, postData)
 
   // Should have called post with url
-  t.true(t.context.request.calledWith('POST', 'http://example.com/posts/foo'))
+  t.true(t.context.request.calledWith('POST', 'http://example.com/posts/barhashcode'))
   // Should have called send
   t.true(t.context.request.send.calledWith(postData))
-  // Should not have called query
-  t.false(t.context.request.query.called)
+  // Should have called query
+  t.true(t.context.request.query.calledWith({ foo: 'bar' }))
+})
+
+test('post request with async factory params and data', async t => {
+  const query = { foo: 'bar' }
+  const postData = { _id: 'hashcode', test: 'something', test2: 'something else' }
+  const url = 'http://example.com/posts/:id'
+  t.context.request.end = t.context.stub().yields(null, { body: {} }).returnsThis()
+  const resource = new t.context.ResourceAction(url, { id: (params, data) => Promise.resolve(params.foo + data._id) }, { method: 'POST' })
+  await resource.makeRequest(query, postData)
+
+  // Should have called post with url
+  t.true(t.context.request.calledWith('POST', 'http://example.com/posts/barhashcode'))
+  // Should have called send
+  t.true(t.context.request.send.calledWith(postData))
+  // Should have called query
+  t.true(t.context.request.query.calledWith({ foo: 'bar' }))
 })

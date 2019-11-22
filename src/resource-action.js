@@ -58,7 +58,7 @@ export default class ResourceAction {
 
     return currentRequest
   }
-  makeRequest (params, data) {
+  async makeRequest (params, data) {
     if (arguments.length === 1 && this.hasData) {
       data = params
       params = undefined
@@ -70,7 +70,12 @@ export default class ResourceAction {
         const p = this.extraParams[i]
         let result
         if (typeof p === 'function') {
-          result = p()
+          try {
+            result = await p(params, data)
+          } catch (e) {
+            console.error(`Error while casting parameters: parameter: "${i}" url: "${this.config.url}"`)
+            throw e
+          }
         } else if (data) {
           result = data[p]
         }
