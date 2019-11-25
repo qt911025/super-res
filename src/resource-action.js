@@ -26,13 +26,28 @@ export default class ResourceAction {
     }
 
     this.defaultParams = defaultParams
+    this.paramPreprocessors = this.config.paramPreprocessors || {}
 
     this.extraParams = {}
     for (const i in defaultParams) {
       if (Object.prototype.hasOwnProperty.call(defaultParams, i)) {
         const param = defaultParams[i]
         if (typeof param === 'function') {
-          this.extraParams[i] = param
+          this.extraParams[i] = (params, data) => {
+            const paramsWithWarning = {}
+            Object.assign(paramsWithWarning, params)
+            Object.defineProperty(paramsWithWarning, i, {
+              get () {
+                console.warn(`
+                  super-res2 Warning: parameter: ${i}; url: ${url}
+                  This is a default parameter generator. It will be overrided by explicitly assigned parameter.
+                `)
+                return params[i]
+              },
+              enumerable: true
+            })
+            return param(paramsWithWarning, data)
+          }
         } else if (typeof param === 'string' && param[0] === '@') {
           this.extraParams[i] = param.slice(1)
         } else {
@@ -64,6 +79,8 @@ export default class ResourceAction {
       params = undefined
     }
 
+    Object.freeze(params)
+    Object.freeze(data)
     const extraP = {}
     for (const i in this.extraParams) {
       if (Object.prototype.hasOwnProperty.call(this.extraParams, i)) {
@@ -73,19 +90,32 @@ export default class ResourceAction {
           try {
             result = await p(params, data)
           } catch (e) {
-            console.error(`Error while casting parameters: parameter: "${i}" url: "${this.config.url}"`)
+            console.error(`super-res2 Error while generating default parameters: parameter: "${i}"; url: "${this.config.url}"`)
             throw e
           }
         } else if (data) {
           result = data[p]
         }
-        if (result) {
+        if (result !== undefined) {
           extraP[i] = result
         }
       }
     }
 
     const fullParams = assignOptions(this.defaultParams, extraP, params)
+
+    for (const i in this.paramPreprocessors) {
+      if (Object.prototype.hasOwnProperty.call(this.paramPreprocessors, i) &&
+      Object.prototype.hasOwnProperty.call(fullParams, i)) {
+        try {
+          fullParams[i] = await this.paramPreprocessors[i](fullParams[i])
+        } catch (e) {
+          console.error(`super-res2 Error while preprocessing parameters: parameter: "${i}"; url: "${this.config.url}"`)
+          throw e
+        }
+      }
+    }
+
     return this.buildRequest(fullParams, data).then(res => res ? res.body : res)
   }
 }

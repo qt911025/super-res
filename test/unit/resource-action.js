@@ -172,3 +172,40 @@ test('post request with async factory params and data', async t => {
   // Should have called query
   t.true(t.context.request.query.calledWith({ foo: 'bar' }))
 })
+
+test('post request with factory params and data, and the default parameter should be overrided', async t => {
+  const query = { id: 'bar' }
+  const postData = { _id: 'hashcode', test: 'something', test2: 'something else' }
+  const url = 'http://example.com/posts/:id'
+  t.context.request.end = t.context.stub().yields(null, { body: {} }).returnsThis()
+  const resource = new t.context.ResourceAction(url, { id: (params, data) => params.id + data._id }, { method: 'POST' })
+  await resource.makeRequest(query, postData)
+
+  // Should have called post with url
+  t.true(t.context.request.calledWith('POST', 'http://example.com/posts/bar'))
+  // Should have called send
+  t.true(t.context.request.send.calledWith(postData))
+  // Should not have called query
+  t.false(t.context.request.query.called)
+})
+
+test('get request preprocess parameters', async t => {
+  const query = { id: 'bar' }
+  const zippedId = Buffer.from('bar').toString('base64')
+  const url = 'http://example.com/posts/:id'
+  t.context.request.end = t.context.stub().yields(null, { body: {} }).returnsThis()
+  const resource = new t.context.ResourceAction(url, {}, {
+    method: 'GET',
+    paramPreprocessors: {
+      id: async (param) => {
+        return Promise.resolve(Buffer.from(param).toString('base64'))
+      }
+    }
+  })
+  await resource.makeRequest(query)
+
+  // Should have called post with url
+  t.true(t.context.request.calledWith('GET', `http://example.com/posts/${zippedId}`))
+  // Should not have called query
+  t.false(t.context.request.query.called)
+})

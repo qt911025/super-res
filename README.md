@@ -63,13 +63,23 @@ myResource.save({ page: 1 }, { _id: 'foo' }) // will request PUT '/user/foo?page
 ```
 
 ```js
-const anotherResource = superRes.resource('/user/:id', { id: (params, data) => params.foo+data._id }) // preprocess function
+const anotherResource = superRes.resource('/user/:id', { id: (params, data) => params.foo+data._id }) // generage default parameter from more data
 myResource.save({ foo: 'bar' }, { _id: '_myId' }) // will request PUT '/user/bar_myId'
 ```
 
-You can even use async preprocess function.
+You can even use an asynchronous function to generate default parameters.
+
 However, error thrown from here won't be catched by catchRequestError hooks.
-This preprocessor should be guaranteed as simple as possible.
+The factory function should be guaranteed as simple as possible.
+
+```js
+const anotherResource = superRes.resource('/user/:id', { id: (params, data) => params.id+data._id }) // generage default parameter from more data
+myResource.save({ id: 'bar' }, { _id: '_myId' }) // will request PUT '/user/bar', not PUT '/user/bar_myId'.
+
+```
+
+NOTE THAT this is not an preprocessor function to preprocess query options!
+The factory function should not reference the field itself!
 
 ```js
 const anotherResource = superRes.resource('/user/:id', {
@@ -101,6 +111,7 @@ Define custom action. If any reserved action is not defined, it will bind to the
     url: '',
     responseType: 'json',
     headers: {},
+    paramPreprocessors: {}
     transformRequest: [],
     catchRequestError: [],
     transformResponse: [],
@@ -110,6 +121,24 @@ Define custom action. If any reserved action is not defined, it will bind to the
     timeout: 0
   }
 }
+```
+
+**paramPreprocessors**
+
+Only for resource. Preprocessor for parameters will cast data of the field. async function is supported.
+
+```js
+const pp = superRes.resource('/user/:id', {}, {
+  fetchData: {
+    method: 'GET',
+    paramPreprocessors: {
+      id: async (param) => {
+        return param+param
+      }
+    }
+  }
+})
+myResource.fetchData({ id: 'bar' }) // will request GET '/user/barbar'
 ```
 
 ##### `commonOptions`
