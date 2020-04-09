@@ -1,6 +1,6 @@
 {
   "name": "super-res2",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "RESTish wrapper for superagent, similar like angular-resource.",
   "scripts": {
     "prepare": "rollup -c",
@@ -62,7 +62,7 @@
     "superagent": "^5.1.0"
   },
   "peerDependencies": {
-    "cache-manager": "^2.10.0"
+    "cache-manager": ">=2"
   },
   "engines": {
     "node": "^6.12.3 || ^8.9.4 || >=10.0.0"
